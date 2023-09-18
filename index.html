@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IndexedDBとCSV</title>
+</head>
+
+<body>
+    <input type="text" id="inputText" placeholder="テキストを入力してください">
+    <button id="saveBtn">保存</button>
+
+    <h2>保存されたデータ:</h2>
+    <pre id="output"></pre>
+
+    <script>
+        // IndexedDBの設定
+        const dbName = "myDB";
+        const storeName = "myDataStore";
+        let db;
+
+        // IndexedDBを開く
+        let request = indexedDB.open(dbName, 1);
+
+        request.onerror = function (event) {
+            console.error("IndexedDBのオープンに失敗しました:", event);
+        };
+
+        request.onsuccess = function (event) {
+            db = event.target.result;
+            displayData();
+        };
+
+        request.onupgradeneeded = function (event) {
+            db = event.target.result;
+            db.createObjectStore(storeName, { autoIncrement: true });
+        };
+
+        document.getElementById('saveBtn').addEventListener('click', function () {
+            let text = document.getElementById('inputText').value;
+            let date = new Date().toISOString();
+            let data = { date: date, text: text };
+            saveToIndexedDB(data);
+        });
+
+        function saveToIndexedDB(data) {
+            let transaction = db.transaction([storeName], "readwrite");
+            let store = transaction.objectStore(storeName);
+            store.add(data);
+
+            transaction.oncomplete = function () {
+                console.log("Data saved!");
+                displayData();
+            };
+
+            transaction.onerror = function (event) {
+                console.error("Save error:", event);
+            };
+        }
+
+        function displayData() {
+            let transaction = db.transaction([storeName], "readonly");
+            let store = transaction.objectStore(storeName);
+            let getDataRequest = store.getAll();
+
+            getDataRequest.onsuccess = function (event) {
+                let results = event.target.result;
+                let csvData = "日時,書き込み内容\n";
+                results.forEach(row => {
+                    csvData += `${row.date},${row.text}\n`;
+                });
+
+                document.getElementById('output').textContent = csvData;
+            };
+        }
+    </script>
+</body>
+
+</html>
