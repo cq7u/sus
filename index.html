@@ -3,77 +3,75 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IndexedDBとCSV</title>
+    <title>IndexedDB CSV Sample</title>
 </head>
 
 <body>
-    <input type="text" id="inputText" placeholder="テキストを入力してください">
-    <button id="saveBtn">保存</button>
+    <h1>データ入力</h1>
 
-    <h2>保存されたデータ:</h2>
+    タイトル: <input type="text" id="title">
+    名前: <input type="text" id="name">
+    内容: <input type="text" id="content">
+    <button onclick="writeData()">書き込み</button>
+
+    <h1>データ表示</h1>
     <pre id="output"></pre>
 
     <script>
-        // IndexedDBの設定
-        const dbName = "myDB";
-        const storeName = "myDataStore";
-        let db;
+        const dbName = "myDatabase";
+        const storeName = "myData";
 
-        // IndexedDBを開く
-        let request = indexedDB.open(dbName, 1);
+        var db;
 
-        request.onerror = function (event) {
-            console.error("IndexedDBのオープンに失敗しました:", event);
-        };
+        function openDB(callback) {
+            const request = indexedDB.open(dbName, 1);
+            request.onupgradeneeded = function(event) {
+                db = event.target.result;
+                db.createObjectStore(storeName, { autoIncrement: true });
+            };
+            request.onsuccess = function(event) {
+                db = event.target.result;
+                callback();
+            };
+            request.onerror = function(event) {
+                console.log("Error:", event);
+            };
+        }
 
-        request.onsuccess = function (event) {
-            db = event.target.result;
+        function writeData() {
+            const title = document.getElementById('title').value;
+            const name = document.getElementById('name').value;
+            const content = document.getElementById('content').value;
+            const timestamp = new Date().toISOString();
+
+            const transaction = db.transaction([storeName], "readwrite");
+            const store = transaction.objectStore(storeName);
+            store.add({ timestamp, title, name, content });
+
             displayData();
-        };
-
-        request.onupgradeneeded = function (event) {
-            db = event.target.result;
-            db.createObjectStore(storeName, { autoIncrement: true });
-        };
-
-        document.getElementById('saveBtn').addEventListener('click', function () {
-            let text = document.getElementById('inputText').value;
-            let date = new Date().toISOString();
-            let data = { date: date, text: text };
-            saveToIndexedDB(data);
-        });
-
-        function saveToIndexedDB(data) {
-            let transaction = db.transaction([storeName], "readwrite");
-            let store = transaction.objectStore(storeName);
-            store.add(data);
-
-            transaction.oncomplete = function () {
-                console.log("Data saved!");
-                displayData();
-            };
-
-            transaction.onerror = function (event) {
-                console.error("Save error:", event);
-            };
         }
 
         function displayData() {
-            let transaction = db.transaction([storeName], "readonly");
-            let store = transaction.objectStore(storeName);
-            let getDataRequest = store.getAll();
+            openDB(() => {
+                const output = document.getElementById('output');
+                const transaction = db.transaction(storeName, "readonly");
+                const store = transaction.objectStore(storeName);
+                const request = store.getAll();
 
-            getDataRequest.onsuccess = function (event) {
-                let results = event.target.result;
-                let csvData = "日時,書き込み内容\n";
-                results.forEach(row => {
-                    csvData += `${row.date},${row.text}\n`;
-                });
-
-                document.getElementById('output').textContent = csvData;
-            };
+                request.onsuccess = function(event) {
+                    const results = event.target.result;
+                    let csv = "日時,タイトル,名前,内容\n";
+                    results.forEach(item => {
+                        csv += `${item.timestamp},${item.title},${item.name},${item.content}\n`;
+                    });
+                    output.textContent = csv;
+                };
+            });
         }
+
+        openDB(() => {
+            displayData();
+        });
     </script>
 </body>
 
